@@ -8,7 +8,7 @@ export const profileApi = {
             .from('profiles')
             .select('*')
             .eq('clerk_id', clerkId)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             // Update non-credit fields only
@@ -51,7 +51,7 @@ export const profileApi = {
             .from('profiles')
             .select('*')
             .eq('clerk_id', clerkId)
-            .single();
+            .maybeSingle();
         if (error) throw error;
         return data;
     },
