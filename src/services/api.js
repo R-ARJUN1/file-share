@@ -36,9 +36,7 @@ export const fileApi = {
     upload: (authApi, file) => {
         const form = new FormData();
         form.append('file', file);
-        return authApi.post('/files/upload', form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        return authApi.post('/files/upload', form);
     },
     list: (authApi) => authApi.get('/files'),
     share: (authApi, fileId) => authApi.post(`/files/${fileId}/share`),

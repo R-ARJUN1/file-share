@@ -62,7 +62,8 @@ const Upload = () => {
         } catch (err) {
             clearInterval(interval);
             setStatus('error');
-            setErrorMsg(err.response?.data?.error || 'Upload failed. Please try again.');
+            console.error('Upload error:', err);
+            setErrorMsg(err.response?.data?.error || err.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
         }
