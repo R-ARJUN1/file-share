@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import { Upload as UploadIcon, X, CheckCircle, AlertTriangle, FileText } from 'lucide-react';
-import { useApiClient, fileApi } from '../services/api';
+import { fileApi } from '../services/api';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -21,8 +22,8 @@ const Upload = () => {
     const [status, setStatus] = useState(null); // 'success' | 'error'
     const [errorMsg, setErrorMsg] = useState('');
     const inputRef = useRef();
-    const authApi = useApiClient();
     const navigate = useNavigate();
+    const { user } = useUser();
 
     const handleFile = (file) => {
         if (!file) return;
@@ -44,7 +45,7 @@ const Upload = () => {
     }, []);
 
     const handleUpload = async () => {
-        if (!selectedFile) return;
+        if (!selectedFile || !user) return;
         setUploading(true);
         setProgress(10);
 
@@ -54,7 +55,7 @@ const Upload = () => {
         }, 400);
 
         try {
-            await fileApi.upload(authApi, selectedFile);
+            await fileApi.upload(selectedFile, user.id);
             clearInterval(interval);
             setProgress(100);
             setStatus('success');
@@ -63,7 +64,7 @@ const Upload = () => {
             clearInterval(interval);
             setStatus('error');
             console.error('Upload error:', err);
-            setErrorMsg(err.response?.data?.error || err.message || 'Upload failed. Please try again.');
+            setErrorMsg(err.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
         }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Check, Zap, Loader } from 'lucide-react';
-import { useApiClient, paymentApi } from '../services/api';
+import { useUser } from '@clerk/clerk-react';
+import { Check, Zap, Loader, CreditCard, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { paymentApi } from '../services/api';
 
 const plans = [
     {
@@ -38,35 +39,144 @@ const plans = [
 ];
 
 const Subscription = () => {
-    const authApi = useApiClient();
-    const [loadingPlan, setLoadingPlan] = useState(null);
-    const [successPlan, setSuccessPlan] = useState(null);
+    const { user } = useUser();
+    const [selectedPlan, setSelectedPlan] = useState(null);
+    const [upiId, setUpiId] = useState('');
+    const [paymentStep, setPaymentStep] = useState('plans'); // 'plans' | 'upi' | 'processing' | 'success'
     const [errorMsg, setErrorMsg] = useState('');
 
-    const handleUpgrade = async (plan) => {
+    const handleSelectPlan = (plan) => {
         if (plan.disabled) return;
-        setLoadingPlan(plan.planKey);
+        setSelectedPlan(plan);
+        setPaymentStep('upi');
+        setUpiId('');
+        setErrorMsg('');
+    };
+
+    const handlePayment = async () => {
+        if (!upiId || !upiId.includes('@')) {
+            setErrorMsg('Please enter a valid UPI ID (e.g., name@upi)');
+            return;
+        }
+
+        setPaymentStep('processing');
         setErrorMsg('');
 
         try {
-            // Step 1: Create mock order
-            const orderRes = await paymentApi.createOrder(authApi, plan.planKey);
-            const { orderId } = orderRes.data;
+            // Simulate payment processing delay
+            await new Promise(resolve => setTimeout(resolve, 2500));
 
-            // Step 2: Simulate payment confirmation (in production, open payment gateway here)
-            await new Promise(resolve => setTimeout(resolve, 1200));
+            // Process payment (adds credits in Supabase)
+            await paymentApi.processPayment(user.id, selectedPlan.planKey, upiId);
 
-            // Step 3: Verify and add credits
-            await paymentApi.verify(authApi, orderId, plan.planKey);
-
-            setSuccessPlan(plan.planKey);
+            setPaymentStep('success');
         } catch (err) {
-            setErrorMsg(err.response?.data?.error || 'Payment failed. Please try again.');
-        } finally {
-            setLoadingPlan(null);
+            setErrorMsg(err.message || 'Payment failed. Please try again.');
+            setPaymentStep('upi');
         }
     };
 
+    const resetFlow = () => {
+        setSelectedPlan(null);
+        setPaymentStep('plans');
+        setUpiId('');
+        setErrorMsg('');
+    };
+
+    // ─── UPI Payment Page ───
+    if (paymentStep === 'upi' && selectedPlan) {
+        return (
+            <div className="max-w-md mx-auto">
+                <button onClick={resetFlow} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
+                    <ArrowLeft size={16} /> Back to plans
+                </button>
+
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <CreditCard size={28} className="text-purple-600" />
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-900">Pay for {selectedPlan.name}</h2>
+                        <p className="text-3xl font-extrabold text-purple-600 mt-2">{selectedPlan.price}</p>
+                        <p className="text-sm text-gray-500 mt-1">{selectedPlan.credits} credits will be added</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">UPI ID</label>
+                            <input
+                                type="text"
+                                placeholder="yourname@paytm"
+                                value={upiId}
+                                onChange={e => setUpiId(e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50"
+                            />
+                        </div>
+
+                        {errorMsg && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handlePayment}
+                            className="w-full py-3.5 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <ShieldCheck size={18} /> Pay {selectedPlan.price}
+                        </button>
+
+                        <p className="text-xs text-center text-gray-400">
+                            🔒 This is a simulated payment for demonstration purposes.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Processing Screen ───
+    if (paymentStep === 'processing') {
+        return (
+            <div className="max-w-md mx-auto flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                    <Loader size={36} className="text-purple-600 animate-spin" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Processing Payment</h2>
+                <p className="text-gray-500 text-center">Verifying your UPI payment...<br />Please wait.</p>
+
+                <div className="mt-8 w-64 bg-gray-200 rounded-full h-2">
+                    <div className="bg-purple-600 h-2 rounded-full animate-pulse" style={{ width: '70%' }} />
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Success Screen ───
+    if (paymentStep === 'success' && selectedPlan) {
+        return (
+            <div className="max-w-md mx-auto flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                    <Check size={40} className="text-green-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Payment Successful! 🎉</h2>
+                <p className="text-gray-500 text-center mb-2">
+                    {selectedPlan.credits} credits have been added to your account.
+                </p>
+                <p className="text-sm text-gray-400 mb-8">
+                    Plan upgraded to <span className="font-semibold text-purple-600 capitalize">{selectedPlan.name}</span>
+                </p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="px-8 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+                >
+                    Continue to Dashboard
+                </button>
+            </div>
+        );
+    }
+
+    // ─── Plan Selection (Default) ───
     return (
         <div className="max-w-5xl mx-auto">
             <div className="mb-8">
@@ -78,7 +188,7 @@ const Subscription = () => {
             <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
                 <Zap size={18} className="text-yellow-500 mt-0.5 shrink-0" />
                 <p className="text-sm text-yellow-700">
-                    <span className="font-semibold">Demo Mode:</span> Payment is simulated. Clicking "Upgrade" will add real credits to your account for testing.
+                    <span className="font-semibold">Demo Mode:</span> Payment is simulated. Enter any UPI ID to test the upgrade flow.
                 </p>
             </div>
 
@@ -114,37 +224,23 @@ const Subscription = () => {
                                 ))}
                             </ul>
 
-                            {successPlan === plan.planKey ? (
-                                <div className="w-full flex items-center justify-center gap-2 bg-green-500 text-white py-3 rounded-xl font-semibold">
-                                    <Check size={18} /> Credits Added!
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => handleUpgrade(plan)}
-                                    disabled={plan.disabled || loadingPlan === plan.planKey}
-                                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-colors duration-200
+                            <button
+                                onClick={() => handleSelectPlan(plan)}
+                                disabled={plan.disabled}
+                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-colors duration-200
                     ${plan.disabled
-                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                            : plan.highlight
-                                                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                                : 'bg-white border border-purple-500 text-purple-600 hover:bg-purple-50'
-                                        } disabled:opacity-60`}
-                                >
-                                    {loadingPlan === plan.planKey ? (
-                                        <><Loader size={16} className="animate-spin" /> Processing...</>
-                                    ) : plan.cta}
-                                </button>
-                            )}
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : plan.highlight
+                                            ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                            : 'bg-white border border-purple-500 text-purple-600 hover:bg-purple-50'
+                                    } disabled:opacity-60`}
+                            >
+                                {plan.cta}
+                            </button>
                         </div>
                     </div>
                 ))}
             </div>
-
-            {errorMsg && (
-                <div className="mt-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
-                    {errorMsg}
-                </div>
-            )}
         </div>
     );
 };

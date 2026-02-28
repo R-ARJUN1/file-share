@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { Copy, Share2, Trash2, Eye, EyeOff, Search, Link, FileText } from 'lucide-react';
-import { useApiClient, fileApi } from '../services/api';
+import { fileApi } from '../services/api';
 
 const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
@@ -23,7 +24,7 @@ const fileTypeIcon = (type) => {
 const APP_BASE_URL = window.location.origin;
 
 const MyFiles = () => {
-    const authApi = useApiClient();
+    const { user } = useUser();
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -33,20 +34,21 @@ const MyFiles = () => {
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
     const fetchFiles = useCallback(() => {
+        if (!user) return;
         setLoading(true);
-        fileApi.list(authApi)
-            .then(res => setFiles(res.data))
+        fileApi.list(user.id)
+            .then(data => setFiles(data))
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []);
+    }, [user]);
 
-    useEffect(() => { fetchFiles(); }, []);
+    useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
     const handleShare = async (file) => {
         setSharingId(file.id);
         try {
-            const res = await fileApi.share(authApi, file.id);
-            setFiles(prev => prev.map(f => f.id === file.id ? res.data : f));
+            const updated = await fileApi.share(file.id);
+            setFiles(prev => prev.map(f => f.id === file.id ? updated : f));
         } catch (err) {
             console.error(err);
         } finally {
@@ -57,8 +59,8 @@ const MyFiles = () => {
     const handleUnshare = async (file) => {
         setSharingId(file.id);
         try {
-            const res = await fileApi.unshare(authApi, file.id);
-            setFiles(prev => prev.map(f => f.id === file.id ? res.data : f));
+            const updated = await fileApi.unshare(file.id);
+            setFiles(prev => prev.map(f => f.id === file.id ? updated : f));
         } catch (err) {
             console.error(err);
         } finally {
@@ -69,7 +71,7 @@ const MyFiles = () => {
     const handleDelete = async (fileId) => {
         setDeletingId(fileId);
         try {
-            await fileApi.delete(authApi, fileId);
+            await fileApi.deleteFile(fileId);
             setFiles(prev => prev.filter(f => f.id !== fileId));
             setConfirmDeleteId(null);
         } catch (err) {
@@ -87,7 +89,7 @@ const MyFiles = () => {
     };
 
     const filtered = files.filter(f =>
-        f.originalFileName?.toLowerCase().includes(search.toLowerCase())
+        f.original_file_name?.toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -126,34 +128,34 @@ const MyFiles = () => {
                     {filtered.map(file => (
                         <div key={file.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-4">
-                                <span className="text-3xl">{fileTypeIcon(file.fileType)}</span>
+                                <span className="text-3xl">{fileTypeIcon(file.file_type)}</span>
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-gray-800 truncate">{file.originalFileName}</p>
+                                    <p className="font-semibold text-gray-800 truncate">{file.original_file_name}</p>
                                     <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                        <span className="text-xs text-gray-400">{formatBytes(file.fileSize)}</span>
+                                        <span className="text-xs text-gray-400">{formatBytes(file.file_size)}</span>
                                         <span className="text-xs text-gray-400">·</span>
-                                        <span className="text-xs text-gray-400">{new Date(file.createdAt).toLocaleDateString()}</span>
-                                        {file.publiclyShared && (
+                                        <span className="text-xs text-gray-400">{new Date(file.created_at).toLocaleDateString()}</span>
+                                        {file.publicly_shared && (
                                             <>
                                                 <span className="text-xs text-gray-400">·</span>
                                                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                    <Eye size={10} /> Shared · {file.downloadCount} views
+                                                    <Eye size={10} /> Shared · {file.download_count} views
                                                 </span>
                                             </>
                                         )}
                                     </div>
                                     {/* Share link display */}
-                                    {file.publiclyShared && file.shareToken && (
+                                    {file.publicly_shared && file.share_token && (
                                         <div className="mt-2 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
                                             <Link size={12} className="text-purple-500 shrink-0" />
                                             <span className="text-xs text-gray-500 truncate">
-                                                {`${APP_BASE_URL}/share/${file.shareToken}`}
+                                                {`${APP_BASE_URL}/share/${file.share_token}`}
                                             </span>
                                             <button
-                                                onClick={() => copyLink(file.shareToken)}
+                                                onClick={() => copyLink(file.share_token)}
                                                 className="shrink-0 text-xs text-purple-600 hover:text-purple-800"
                                             >
-                                                {copiedId === file.shareToken ? '✓ Copied!' : <Copy size={12} />}
+                                                {copiedId === file.share_token ? '✓ Copied!' : <Copy size={12} />}
                                             </button>
                                         </div>
                                     )}
@@ -162,7 +164,7 @@ const MyFiles = () => {
                                 {/* Actions */}
                                 <div className="flex items-center gap-2 shrink-0">
                                     {/* Share / Unshare */}
-                                    {file.publiclyShared ? (
+                                    {file.publicly_shared ? (
                                         <button
                                             onClick={() => handleUnshare(file)}
                                             disabled={sharingId === file.id}
@@ -187,9 +189,9 @@ const MyFiles = () => {
                                     )}
 
                                     {/* Copy link (only if shared) */}
-                                    {file.publiclyShared && file.shareToken && (
+                                    {file.publicly_shared && file.share_token && (
                                         <button
-                                            onClick={() => copyLink(file.shareToken)}
+                                            onClick={() => copyLink(file.share_token)}
                                             title="Copy link"
                                             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
                                         >

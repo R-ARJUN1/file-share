@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Download, FileText, Shield, AlertTriangle, Share2 } from 'lucide-react';
 import { publicApi } from '../services/api';
-import { assets } from '../assets/assets';
 
 const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
@@ -30,7 +29,7 @@ const PublicFileView = () => {
 
     useEffect(() => {
         publicApi.getSharedFile(shareToken)
-            .then(res => setFile(res.data))
+            .then(data => setFile(data))
             .catch(() => setNotFound(true))
             .finally(() => setLoading(false));
     }, [shareToken]);
@@ -63,28 +62,28 @@ const PublicFileView = () => {
                     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 max-w-lg w-full p-8">
                         {/* File icon & name */}
                         <div className="text-center mb-6">
-                            <div className="text-6xl mb-3">{fileTypeIcon(file.fileType)}</div>
-                            <h1 className="text-xl font-bold text-gray-900 break-all">{file.originalFileName}</h1>
+                            <div className="text-6xl mb-3">{fileTypeIcon(file.file_type)}</div>
+                            <h1 className="text-xl font-bold text-gray-900 break-all">{file.original_file_name}</h1>
                             <div className="flex items-center justify-center gap-4 mt-2">
-                                <span className="text-sm text-gray-400">{formatBytes(file.fileSize)}</span>
+                                <span className="text-sm text-gray-400">{formatBytes(file.file_size)}</span>
                                 <span className="text-gray-300">·</span>
-                                <span className="text-sm text-gray-400">{file.downloadCount} downloads</span>
+                                <span className="text-sm text-gray-400">{file.download_count} downloads</span>
                             </div>
                         </div>
 
                         {/* Image preview */}
-                        {file.fileType?.startsWith('image/') && file.publicUrl && (
+                        {file.file_type?.startsWith('image/') && file.public_url && (
                             <div className="mb-6 rounded-2xl overflow-hidden border border-gray-100">
                                 <img
-                                    src={file.publicUrl}
-                                    alt={file.originalFileName}
+                                    src={file.public_url}
+                                    alt={file.original_file_name}
                                     className="w-full max-h-72 object-contain bg-gray-50"
                                 />
                             </div>
                         )}
 
                         {/* PDF preview link */}
-                        {file.fileType?.includes('pdf') && file.publicUrl && (
+                        {file.file_type?.includes('pdf') && file.public_url && (
                             <div className="mb-6 bg-red-50 border border-red-100 rounded-xl p-4 text-center">
                                 <p className="text-sm text-red-600 mb-2">PDF preview available after download.</p>
                             </div>
@@ -92,10 +91,10 @@ const PublicFileView = () => {
 
                         {/* Download Button */}
                         <a
-                            href={file.publicUrl}
+                            href={file.public_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            download={file.originalFileName}
+                            download={file.original_file_name}
                             className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3.5
                 rounded-xl font-semibold hover:bg-purple-700 transition-colors duration-200"
                         >

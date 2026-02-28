@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Files, Coins, TrendingUp, Clock, ArrowRight } from 'lucide-react';
-import { useApiClient, fileApi } from '../services/api';
+import { fileApi, profileApi } from '../services/api';
 
 const StatCard = ({ icon: Icon, label, value, color }) => (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
@@ -37,21 +37,26 @@ const fileTypeIcon = (type) => {
 const Dashboard = () => {
     const { user } = useUser();
     const navigate = useNavigate();
-    const authApi = useApiClient();
     const [files, setFiles] = useState([]);
+    const [credits, setCredits] = useState('...');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fileApi.list(authApi)
-            .then(res => setFiles(res.data))
-            .catch(console.error)
-            .finally(() => setLoading(false));
-    }, []);
+        if (!user) return;
+        Promise.all([
+            fileApi.list(user.id),
+            profileApi.get(user.id),
+        ]).then(([fileList, profile]) => {
+            setFiles(fileList);
+            setCredits(profile?.credits ?? 0);
+        }).catch(console.error)
+          .finally(() => setLoading(false));
+    }, [user]);
 
-    const totalDownloads = files.reduce((sum, f) => sum + (f.downloadCount || 0), 0);
-    const sharedCount = files.filter(f => f.publiclyShared).length;
+    const totalDownloads = files.reduce((sum, f) => sum + (f.download_count || 0), 0);
+    const sharedCount = files.filter(f => f.publicly_shared).length;
     const recentFiles = [...files]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 5);
 
     return (
@@ -67,7 +72,7 @@ const Dashboard = () => {
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <StatCard icon={Files} label="Total Files" value={files.length} color="bg-purple-500" />
-                <StatCard icon={Coins} label="Credits Left" value={user?.publicMetadata?.credits ?? '...'} color="bg-blue-500" />
+                <StatCard icon={Coins} label="Credits Left" value={credits} color="bg-blue-500" />
                 <StatCard icon={TrendingUp} label="Total Downloads" value={totalDownloads} color="bg-green-500" />
                 <StatCard icon={Clock} label="Files Shared" value={sharedCount} color="bg-orange-500" />
             </div>
@@ -101,12 +106,12 @@ const Dashboard = () => {
                         <ul className="space-y-2">
                             {recentFiles.map(file => (
                                 <li key={file.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                                    <span className="text-2xl">{fileTypeIcon(file.fileType)}</span>
+                                    <span className="text-2xl">{fileTypeIcon(file.file_type)}</span>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-800 truncate">{file.originalFileName}</p>
-                                        <p className="text-xs text-gray-400">{formatBytes(file.fileSize)}</p>
+                                        <p className="text-sm font-medium text-gray-800 truncate">{file.original_file_name}</p>
+                                        <p className="text-xs text-gray-400">{formatBytes(file.file_size)}</p>
                                     </div>
-                                    {file.publiclyShared && (
+                                    {file.publicly_shared && (
                                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Shared</span>
                                     )}
                                 </li>

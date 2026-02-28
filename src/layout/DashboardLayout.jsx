@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { UserButton, useUser, useAuth } from '@clerk/clerk-react';
-import { LayoutDashboard, Upload, Files, CreditCard, History, LogOut, Menu, X, Share2 } from 'lucide-react';
+import { LayoutDashboard, Upload, Files, CreditCard, History, Menu, X, Share2, Coins } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useApiClient, profileApi } from '../services/api';
+import { profileApi } from '../services/api';
 
 const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,20 +14,23 @@ const navItems = [
 
 const DashboardLayout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [credits, setCredits] = useState(null);
+    const [plan, setPlan] = useState('basic');
     const { user } = useUser();
     const { signOut } = useAuth();
     const navigate = useNavigate();
-    const authApi = useApiClient();
 
-    // Register/sync profile on every mount (idempotent on backend)
+    // Register/sync profile on mount + fetch credits
     useEffect(() => {
         if (user) {
-            profileApi.register(authApi, {
-                clerkId: user.id,
+            profileApi.upsert(user.id, {
                 email: user.primaryEmailAddress?.emailAddress,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 imgURL: user.imageUrl,
+            }).then(profile => {
+                setCredits(profile.credits);
+                setPlan(profile.plan || 'basic');
             }).catch(console.error);
         }
     }, [user]);
@@ -54,6 +57,16 @@ const DashboardLayout = ({ children }) => {
                     <button className="ml-auto lg:hidden text-gray-500" onClick={() => setSidebarOpen(false)}>
                         <X size={20} />
                     </button>
+                </div>
+
+                {/* Credits Badge */}
+                <div className="mx-4 mt-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-3 border border-purple-100">
+                    <div className="flex items-center gap-2">
+                        <Coins size={16} className="text-purple-600" />
+                        <span className="text-sm font-medium text-gray-700">Credits</span>
+                    </div>
+                    <p className="text-2xl font-bold text-purple-700 mt-1">{credits ?? '...'}</p>
+                    <p className="text-xs text-gray-500 capitalize">{plan} plan</p>
                 </div>
 
                 {/* Nav links */}
@@ -104,6 +117,9 @@ const DashboardLayout = ({ children }) => {
                     </button>
                     <Share2 className="text-purple-600" size={20} />
                     <span className="font-bold text-gray-900 text-lg">FileShare</span>
+                    <div className="ml-auto flex items-center gap-1 text-sm text-purple-600 font-semibold">
+                        <Coins size={14} /> {credits ?? '...'}
+                    </div>
                 </header>
 
                 {/* Page content */}
